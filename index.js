@@ -342,6 +342,25 @@ const lunarCalendar = {
   }
 };
 
+// 公历月/年周期计算（处理月末日期钳位）
+// 此函数需前后端同步：前端模板字符串中有同名副本
+function addGregorianPeriod(date, periodValue, periodUnit, anchorDay) {
+  const result = new Date(date);
+  if (periodUnit === 'day') {
+    result.setDate(result.getDate() + periodValue);
+  } else if (periodUnit === 'month') {
+    result.setMonth(result.getMonth() + periodValue, 1); // 先设为1号避免溢出
+    const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(anchorDay, lastDay));
+  } else if (periodUnit === 'year') {
+    result.setFullYear(result.getFullYear() + periodValue);
+    result.setMonth(result.getMonth(), 1); // 先设为1号避免溢出
+    const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(anchorDay, lastDay));
+  }
+  return result;
+}
+
 // 1. 新增 lunarBiz 工具模块，支持农历加周期、农历转公历、农历距离天数
 const lunarBiz = {
   // 农历加周期，返回新的农历日期对象
@@ -1541,6 +1560,25 @@ function lunar2solar(lunar) {
   return null;
 }
 
+// 公历月/年周期计算（处理月末日期钳位）
+// 此函数需前后端同步：后端顶部工具函数区域有同名副本
+function addGregorianPeriod(date, periodValue, periodUnit, anchorDay) {
+  const result = new Date(date);
+  if (periodUnit === 'day') {
+    result.setDate(result.getDate() + periodValue);
+  } else if (periodUnit === 'month') {
+    result.setMonth(result.getMonth() + periodValue, 1);
+    const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(anchorDay, lastDay));
+  } else if (periodUnit === 'year') {
+    result.setFullYear(result.getFullYear() + periodValue);
+    result.setMonth(result.getMonth(), 1);
+    const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(anchorDay, lastDay));
+  }
+  return result;
+}
+
 // 新增修改，农历加周期，前期版本
 function addLunarPeriod(lunar, periodValue, periodUnit) {
   let { year, month, day, isLeap } = lunar;
@@ -2467,22 +2505,17 @@ const lunarBiz = {
             }
         } else {
             // 公历计算逻辑
-            const tempDate = new Date(parts.year, parts.month - 1, parts.day);
+            const baseDate = new Date(parts.year, parts.month - 1, parts.day);
+            const anchorDay = subscription.anchorDay || parts.day;
             const totalPeriodValue = subscription.periodValue * multiplier;
-            
-            if (subscription.periodUnit === 'day') {
-                tempDate.setDate(tempDate.getDate() + totalPeriodValue);
-            } else if (subscription.periodUnit === 'month') {
-                tempDate.setMonth(tempDate.getMonth() + totalPeriodValue);
-            } else if (subscription.periodUnit === 'year') {
-                tempDate.setFullYear(tempDate.getFullYear() + totalPeriodValue);
-            }
-            
+
+            const tempDate = addGregorianPeriod(baseDate, totalPeriodValue, subscription.periodUnit, anchorDay);
+
             // 格式化输出 YYYY-MM-DD
             const y = tempDate.getFullYear();
             const m = String(tempDate.getMonth() + 1).padStart(2, '0');
             const d = String(tempDate.getDate()).padStart(2, '0');
-            
+
             document.getElementById('newExpiryPreview').textContent = y + '-' + m + '-' + d;
         }
     }
@@ -3540,14 +3573,8 @@ const lunarBiz = {
 	  } else {
 		// 公历推算
 		const start = new Date(startDate);
-		const expiry = new Date(start);
-		if (periodUnit === 'day') {
-		  expiry.setDate(start.getDate() + periodValue);
-		} else if (periodUnit === 'month') {
-		  expiry.setMonth(start.getMonth() + periodValue);
-		} else if (periodUnit === 'year') {
-		  expiry.setFullYear(start.getFullYear() + periodValue);
-		}
+		const anchorDay = start.getDate();
+		const expiry = addGregorianPeriod(start, periodValue, periodUnit, anchorDay);
 		document.getElementById('expiryDate').value = expiry.toISOString().split('T')[0];
 		console.log('start:', start);
 		console.log('expiry:', expiry);
@@ -6045,18 +6072,17 @@ async function createSubscription(subscription, env) {
       }
     } else {
       if (expiryDate < currentTime && subscription.periodValue && subscription.periodUnit) {
+        const anchorDay = expiryDate.getDate();
         while (expiryDate < currentTime) {
-          if (subscription.periodUnit === 'day') {
-            expiryDate.setDate(expiryDate.getDate() + subscription.periodValue);
-          } else if (subscription.periodUnit === 'month') {
-            expiryDate.setMonth(expiryDate.getMonth() + subscription.periodValue);
-          } else if (subscription.periodUnit === 'year') {
-            expiryDate.setFullYear(expiryDate.getFullYear() + subscription.periodValue);
-          }
+          expiryDate = addGregorianPeriod(expiryDate, subscription.periodValue, subscription.periodUnit, anchorDay);
         }
         subscription.expiryDate = expiryDate.toISOString();
       }
     }
+
+    // 从起始日或到期日提取 anchorDay
+    const anchorDaySource = subscription.startDate ? new Date(subscription.startDate) : new Date(subscription.expiryDate);
+    const anchorDay = anchorDaySource.getDate();
 
     const reminderSetting = resolveReminderSetting(subscription);
 
@@ -6071,13 +6097,14 @@ async function createSubscription(subscription, env) {
       expiryDate: subscription.expiryDate,
       periodValue: subscription.periodValue || 1,
       periodUnit: subscription.periodUnit || 'month',
+      anchorDay: anchorDay,
       reminderUnit: reminderSetting.unit,
       reminderValue: reminderSetting.value,
       reminderDays: reminderSetting.unit === 'day' ? reminderSetting.value : undefined,
       reminderHours: reminderSetting.unit === 'hour' ? reminderSetting.value : undefined,
       notes: subscription.notes || '',
       amount: subscription.amount || null,
-      currency: subscription.currency || 'CNY', // 使用传入的币种，默认为CNY  
+      currency: subscription.currency || 'CNY', // 使用传入的币种，默认为CNY
       lastPaymentDate: initialPaymentDate,
       paymentHistory: subscription.amount ? [{
         id: Date.now().toString(),
@@ -6145,18 +6172,16 @@ if (useLunar) {
   }
 } else {
       if (expiryDate < currentTime && subscription.periodValue && subscription.periodUnit) {
+        const anchorDay = expiryDate.getDate();
         while (expiryDate < currentTime) {
-          if (subscription.periodUnit === 'day') {
-            expiryDate.setDate(expiryDate.getDate() + subscription.periodValue);
-          } else if (subscription.periodUnit === 'month') {
-            expiryDate.setMonth(expiryDate.getMonth() + subscription.periodValue);
-          } else if (subscription.periodUnit === 'year') {
-            expiryDate.setFullYear(expiryDate.getFullYear() + subscription.periodValue);
-          }
+          expiryDate = addGregorianPeriod(expiryDate, subscription.periodValue, subscription.periodUnit, anchorDay);
         }
         subscription.expiryDate = expiryDate.toISOString();
       }
     }
+
+    // 编辑到期日时更新 anchorDay
+    const newAnchorDay = new Date(subscription.expiryDate).getDate();
 
     const reminderSource = {
       reminderUnit: subscription.reminderUnit !== undefined ? subscription.reminderUnit : subscriptions[index].reminderUnit,
@@ -6191,6 +6216,7 @@ if (useLunar) {
       expiryDate: subscription.expiryDate,
       periodValue: subscription.periodValue || subscriptions[index].periodValue || 1,
       periodUnit: subscription.periodUnit || subscriptions[index].periodUnit || 'month',
+      anchorDay: newAnchorDay,
       reminderUnit: reminderSetting.unit,
       reminderValue: reminderSetting.value,
       reminderDays: reminderSetting.unit === 'day' ? reminderSetting.value : undefined,
@@ -6295,16 +6321,9 @@ async function manualRenewSubscription(id, env, options = {}) {
        newExpiryDate = new Date(solar.year, solar.month - 1, solar.day);
     } else {
        // 公历逻辑
-       newExpiryDate = new Date(newStartDate);
+       const anchorDay = subscription.anchorDay || newStartDate.getDate();
        const totalPeriodValue = subscription.periodValue * periodMultiplier;
-       
-       if (subscription.periodUnit === 'day') {
-          newExpiryDate.setDate(newExpiryDate.getDate() + totalPeriodValue);
-       } else if (subscription.periodUnit === 'month') {
-          newExpiryDate.setMonth(newExpiryDate.getMonth() + totalPeriodValue);
-       } else if (subscription.periodUnit === 'year') {
-          newExpiryDate.setFullYear(newExpiryDate.getFullYear() + totalPeriodValue);
-       }
+       newExpiryDate = addGregorianPeriod(newStartDate, totalPeriodValue, subscription.periodUnit, anchorDay);
     }
 
     const paymentRecord = {
@@ -7167,10 +7186,8 @@ let diffHours = diffMs / MS_PER_HOUR;
               const solarNext = lunarBiz.lunar2solar(nextLunar);
               targetDate = new Date(solarNext.year, solarNext.month - 1, solarNext.day);
            } else {
-              targetDate = new Date(baseDate);
-              if (subscription.periodUnit === 'day') targetDate.setDate(targetDate.getDate() + subscription.periodValue);
-              else if (subscription.periodUnit === 'month') targetDate.setMonth(targetDate.getMonth() + subscription.periodValue);
-              else if (subscription.periodUnit === 'year') targetDate.setFullYear(targetDate.getFullYear() + subscription.periodValue);
+              const anchorDay = subscription.anchorDay || baseDate.getDate();
+              targetDate = addGregorianPeriod(baseDate, subscription.periodValue, subscription.periodUnit, anchorDay);
            }
            return targetDate;
         };

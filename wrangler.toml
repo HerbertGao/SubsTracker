@@ -10,10 +10,9 @@ name = "subscription-manager"
 name = "subscription-manager-staging"
 
 # KV 命名空间配置
+# 仅声明 binding 名称，实际的 KV namespace ID 在 Cloudflare Dashboard > Settings > Bindings 中配置
 [[kv_namespaces]]
 binding = "SUBSCRIPTIONS_KV"
-preview_id = "your-preview-kv-namespace-id"
-id = "your-production-kv-namespace-id"
 
 # 定时任务配置 - 每天早上8点检查
 [triggers]

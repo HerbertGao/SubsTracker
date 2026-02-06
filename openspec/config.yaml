@@ -1,0 +1,50 @@
+schema: spec-driven
+
+context: |
+  项目名称：SubsTracker - 订阅管理与提醒系统
+  仓库地址：https://github.com/wangwangit/SubsTracker
+  许可证：MIT
+
+  ## 技术栈
+  - 运行时：Cloudflare Workers（Serverless 边缘计算）
+  - 语言：JavaScript (ES6+)，无 TypeScript
+  - 前端：Vanilla JS + Tailwind CSS 2.x + Font Awesome 6.0（均通过 CDN 引入），无前端框架
+  - 数据存储：Cloudflare KV（键值存储，命名空间 SUBSCRIPTIONS_KV）
+  - 认证：JWT (HMAC-SHA256) + HttpOnly Cookie
+  - 构建：无构建步骤，无 npm 依赖，单文件直接部署
+  - 定时任务：Cloudflare Workers Cron Triggers
+
+  ## 架构
+  - 单文件架构：全部代码（前端 HTML 模板 + 后端 API + 业务逻辑）集中在 index.js（约 7700 行）
+  - HTML 页面以 JS 模板字符串形式嵌入，由后端直接返回
+  - 路由分层：/ 登录页 → /admin/* 管理页面（需认证）→ /api/* REST API
+  - 处理器以对象形式组织：adminHandler（页面）、apiHandler（接口）
+  - API 统一返回格式：{ success: true/false, message?: string, data?: any }
+  - KV 存储结构：'subscriptions' 存订阅数组，'config' 存系统配置，'SYSTEM_EXCHANGE_RATES' 存汇率缓存
+
+  ## 核心领域
+  - 订阅生命周期管理：创建、编辑、删除、启用/停用、手动续订
+  - 两种续费模式：cycle（从到期日无缝续期）和 reset（从当天重新开始）
+  - 到期提醒：支持天/小时粒度，Cron 定时检查，剩余时间 ≤ 提醒阈值时触发通知
+  - 农历支持：内置 1900-2100 年农历转换算法，支持农历日期的订阅周期计算
+  - 多币种财务追踪：支持 CNY/USD/HKD/TWD/JPY/EUR/GBP/KRW/TRY 等，动态汇率（Frankfurter API）+ 24h KV 缓存 + 硬编码兜底
+  - 支付历史：每次续订生成支付记录，精确追踪计费周期（periodStart → periodEnd）
+  - 仪表盘统计：月度/年度支出、环比趋势、分类占比、即将续费提醒
+
+  ## 通知渠道
+  支持 6 种通知渠道，可同时启用多个：
+  - Telegram Bot、NotifyX、自定义 Webhook（支持模板占位符）、企业微信机器人、Resend 邮件、Bark (iOS)
+  - 模板变量：{{title}}、{{content}}、{{tags}}、{{tagsLine}}、{{timestamp}}、{{formattedMessage}}
+  - 第三方 API 触发：POST /api/notify/{token}
+
+  ## 编码约定
+  - 命名：变量/函数 camelCase，常量 UPPER_SNAKE_CASE，配置键 UPPER_CASE
+  - 日志：console.log/warn/error，带中文或英文前缀标签如 [定时任务]、[Telegram]、[NotifyX]
+  - 注释与 UI 文案：中文
+  - 日期处理：时区感知（Intl API），午夜时间戳归一化，毫秒精度
+  - 错误处理：try-catch + 优雅降级（如汇率 API 失败则用缓存或兜底值）
+
+  ## 部署方式
+  - 一键部署按钮（Deploy to Cloudflare Workers）
+  - 或手动：在 Cloudflare 创建 Worker → 粘贴 index.js → 绑定 KV → 配置 Cron
+  - 默认账号 admin / password，首次登录后在系统配置中修改

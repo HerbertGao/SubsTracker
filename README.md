@@ -135,6 +135,24 @@ Fork仓库,然后点击自己仓库里的部署按钮，等待部署完成,**注
 
 
 
+## 🔗 Git 集成自动部署
+
+通过 Cloudflare Workers 的 Git 集成功能，绑定 GitHub 仓库后推送代码即可自动部署。
+
+### 配置步骤
+
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/) > **Workers & Pages**
+2. 点击 **Create** > **Import a repository**，授权并选择你 Fork 的 SubsTracker 仓库
+3. 设置部署分支为 `master`，Cloudflare 会自动读取 `wrangler.toml` 中的配置
+4. 部署完成后，进入 Worker 的 **Settings > Bindings**，添加 KV Namespace 绑定：
+   - Variable name：`SUBSCRIPTIONS_KV`
+   - KV namespace：选择你创建的 KV 命名空间
+5. 进入 **Settings > Triggers > Cron Triggers**，确认定时任务已按 `wrangler.toml` 配置生效
+
+后续每次推送到 `master` 分支，Cloudflare 会自动拉取代码并重新部署。
+
+> **注意**：`wrangler.toml` 中不包含 KV namespace ID 等敏感信息，所有绑定配置均在 Cloudflare Dashboard 中管理，可安全提交到公开仓库。
+
 ## 🚀 手动部署指南
 
 ### 前提条件
