@@ -1,0 +1,23 @@
+## MODIFIED Requirements
+
+### 需求：wrangler.toml 不包含敏感信息
+`wrangler.toml` 中禁止包含真实的 KV namespace ID 或其他敏感凭据，`[[kv_namespaces]]` 仅保留 `binding` 名称。入口文件必须指向模块化架构的 `src/index.js`。
+
+#### 场景：wrangler.toml 中无 KV namespace ID
+- **当** 检查仓库中的 `wrangler.toml` 文件
+- **那么** `[[kv_namespaces]]` 下必须仅有 `binding` 字段，禁止出现 `id` 或 `preview_id` 字段
+
+#### 场景：wrangler.toml 入口为模块化架构
+- **当** 检查仓库中的 `wrangler.toml` 文件
+- **那么** `main` 字段必须为 `src/index.js`
+
+### 需求：README 包含 Cloudflare Git 集成部署指引
+README 必须包含通过 Cloudflare Workers Git 集成绑定仓库的部署说明，包括 KV 绑定配置步骤。部署按钮必须指向 fork 仓库。
+
+#### 场景：README 包含 Git 集成部署章节
+- **当** 用户阅读 README
+- **那么** 必须能找到 Cloudflare Workers 绑定 GitHub 仓库的步骤说明，以及在 Dashboard 中配置 KV Bindings 的指引
+
+#### 场景：一键部署按钮指向 fork 仓库
+- **当** 用户点击 README 中的一键部署按钮
+- **那么** 部署链接必须指向 `https://github.com/HerbertGao/SubsTracker`
